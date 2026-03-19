@@ -18,11 +18,11 @@ NAME
     codex-session - directory & branch-aware Codex CLI session manager
 
 SYNOPSIS
-    cx        Start or resume a Codex session
-    cx list   List all sessions
-    cx doctor Diagnose environment
-    cxf       Fuzzy find and switch sessions
-    cxc       Clean up stale sessions
+    cx                Start or resume session
+    cx [list|ls]      List all sessions
+    cx [doctor|doc]   Diagnose environment
+    cxf               Fuzzy switch sessions
+    cxc               Cleanup stale sessions
 
 DESCRIPTION
     codex-session provides persistent Codex CLI sessions scoped to the
@@ -30,22 +30,6 @@ DESCRIPTION
 
     Sessions are automatically saved and resumed, allowing seamless
     context switching across projects.
-
-COMMANDS
-    cx
-        Start or resume session for current directory and branch.
-
-    cx list
-        List all stored sessions.
-
-    cx doctor
-        Show environment diagnostics.
-
-    cxf
-        Interactive session switcher using fzf.
-
-    cxc
-        Remove stale or invalid sessions.
 
 FILES
     ~/.codex_sessions/
@@ -107,11 +91,26 @@ _codex_list() {
 		return
 	fi
 
-	printf "%-20s %-50s %-15s %s\n" "SESSION" "DIRECTORY" "BRANCH" "CREATED"
+	printf "%-20s %-40s %-20s %s\n" "SESSION" "DIRECTORY" "BRANCH" "CREATED"
 	echo "--------------------------------------------------------------------------------"
 
 	_codex_reverse_file "$CODEX_INDEX_FILE" |
-		awk -F'|' '{printf "%-20s %-50s %-15s %s\n", $1, $2, $3, $4}'
+		awk -F'|' '{
+      dir=$2
+      branch=$3
+
+      # truncate directory (keep end part)
+      if (length(dir) > 40) {
+        dir="..." substr(dir, length(dir)-37)
+      }
+
+      # truncate branch if needed
+      if (length(branch) > 20) {
+        branch=substr(branch, 1, 17) "..."
+      }
+
+      printf "%-20s %-40s %-20s %s\n", $1, dir, branch, $4
+    }'
 }
 
 _codex_doctor() {
@@ -130,23 +129,21 @@ _codex_doctor() {
 # ---- Main: codexx ----
 
 codexx() {
-	# ---- Command handling ----
 	case "$1" in
 	-h | --help | help)
 		_codex_help
 		return
 		;;
-	list)
+	list | ls)
 		_codex_list
 		return
 		;;
-	doctor)
+	doctor | doc)
 		_codex_doctor
 		return
 		;;
 	esac
 
-	# ---- Dependency check ----
 	command -v codex >/dev/null || {
 		echo "❌ codex CLI not found"
 		return 1
@@ -210,11 +207,12 @@ codexf() {
 			--color=border:gray,prompt:cyan,preview-border:gray \
 			--preview '
         IFS="|" read -r id dir branch ts <<< {}
+
         echo -e "\033[1;36mSession:\033[0m   $id"
         echo -e "\033[1;33mDirectory:\033[0m $dir"
         echo -e "\033[1;35mBranch:\033[0m    ${branch:-none}"
         echo -e "\033[1;32mCreated:\033[0m   $ts"
-		')
+      ')
 
 	[ -z "$selection" ] && return
 
