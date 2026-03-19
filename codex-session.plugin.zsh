@@ -91,25 +91,29 @@ _codex_list() {
 		return
 	fi
 
-	printf "%-20s %-40s %-20s %s\n" "SESSION" "DIRECTORY" "BRANCH" "CREATED"
-	echo "--------------------------------------------------------------------------------"
+	printf "%-36s %-40s %-25s %s\n" "SESSION" "DIRECTORY" "BRANCH" "CREATED"
+	echo "---------------------------------------------------------------------------------------------------------------"
 
 	_codex_reverse_file "$CODEX_INDEX_FILE" |
 		awk -F'|' '{
+      id=$1
       dir=$2
       branch=$3
+      ts=$4
 
-      # truncate directory (keep end part)
+      # truncate directory (keep tail)
       if (length(dir) > 40) {
-        dir="..." substr(dir, length(dir)-37)
+        dir="..." substr(dir, length(dir)-36)
       }
 
-      # truncate branch if needed
-      if (length(branch) > 20) {
-        branch=substr(branch, 1, 17) "..."
+      # truncate branch
+      if (length(branch) > 25) {
+        branch=substr(branch, 1, 22) "..."
       }
 
-      printf "%-20s %-40s %-20s %s\n", $1, dir, branch, $4
+      if (branch == "") branch="-"
+
+      printf "%-36s %-40s %-25s %s\n", id, dir, branch, ts
     }'
 }
 
