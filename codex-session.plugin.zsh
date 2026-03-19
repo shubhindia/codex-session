@@ -203,14 +203,22 @@ codexf() {
 	fi
 
 	local selection=$(_codex_reverse_file "$CODEX_INDEX_FILE" |
-		awk -F'|' '{printf "%s|%s|%s|%s\n", $1, $2, $3, $4}' |
-		fzf --prompt="Codex Sessions ❯ " --height=40% --border)
+		fzf \
+			--prompt="Codex Sessions ❯ " \
+			--height=50% \
+			--border \
+			--color=border:gray,prompt:cyan,preview-border:gray \
+			--preview '
+        IFS="|" read -r id dir branch ts <<< {}
+        echo -e "\033[1;36mSession:\033[0m   $id"
+        echo -e "\033[1;33mDirectory:\033[0m $dir"
+        echo -e "\033[1;35mBranch:\033[0m    ${branch:-none}"
+        echo -e "\033[1;32mCreated:\033[0m   $ts"
+		')
 
 	[ -z "$selection" ] && return
 
-	local session_id=$(echo "$selection" | cut -d'|' -f1)
-	local target_dir=$(echo "$selection" | cut -d'|' -f2)
-	local branch=$(echo "$selection" | cut -d'|' -f3)
+	IFS='|' read -r session_id target_dir branch ts <<<"$selection"
 
 	echo "📂 Switching to $target_dir"
 	cd "$target_dir" || return
