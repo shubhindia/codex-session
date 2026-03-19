@@ -3,12 +3,70 @@
 # ================================
 
 # ---- Config ----
-CODEX_SESSIONS_DIR="$HOME/.codex_sessions"
+CODEX_SESSIONS_DIR="${CODEX_SESSIONS_DIR:-$HOME/.codex_sessions}"
 CODEX_INDEX_FILE="$CODEX_SESSIONS_DIR/index"
 
 mkdir -p "$CODEX_SESSIONS_DIR"
 
 # ---- Helpers ----
+
+_codex_help() {
+	cat <<'EOF' | ${PAGER:-less}
+CODEX-SESSION(1)
+
+NAME
+    codex-session - directory & branch-aware Codex CLI session manager
+
+SYNOPSIS
+    cx        Start or resume a Codex session
+    cx list   List all sessions
+    cx doctor Diagnose environment
+    cxf       Fuzzy find and switch sessions
+    cxc       Clean up stale sessions
+
+DESCRIPTION
+    codex-session provides persistent Codex CLI sessions scoped to the
+    current directory and git branch.
+
+    Sessions are automatically saved and resumed, allowing seamless
+    context switching across projects.
+
+COMMANDS
+    cx
+        Start or resume session for current directory and branch.
+
+    cx list
+        List all stored sessions.
+
+    cx doctor
+        Show environment diagnostics.
+
+    cxf
+        Interactive session switcher using fzf.
+
+    cxc
+        Remove stale or invalid sessions.
+
+FILES
+    ~/.codex_sessions/
+        Stores session metadata and mappings.
+
+REQUIREMENTS
+    codex CLI
+    fzf (for session switching)
+    git (optional)
+
+VERSION
+    0.1.0
+
+HOMEPAGE
+    https://github.com/shubhindia/codex-session
+
+AUTHOR
+    Shubham Gopale
+
+EOF
+}
 
 _codex_get_cwd() {
 	realpath .
@@ -43,15 +101,64 @@ _codex_safe_sed_delete() {
 	fi
 }
 
+_codex_list() {
+	if [ ! -f "$CODEX_INDEX_FILE" ]; then
+		echo "No sessions found"
+		return
+	fi
+
+	printf "%-20s %-50s %-15s %s\n" "SESSION" "DIRECTORY" "BRANCH" "CREATED"
+	echo "--------------------------------------------------------------------------------"
+
+	_codex_reverse_file "$CODEX_INDEX_FILE" |
+		awk -F'|' '{printf "%-20s %-50s %-15s %s\n", $1, $2, $3, $4}'
+}
+
+_codex_doctor() {
+	echo "Codex Session Doctor"
+	echo "--------------------"
+
+	command -v codex >/dev/null && echo "✅ codex CLI found" || echo "❌ codex CLI missing"
+	command -v fzf >/dev/null && echo "✅ fzf found" || echo "⚠️ fzf missing (needed for cxf)"
+	command -v git >/dev/null && echo "✅ git found" || echo "⚠️ git missing (branch support)"
+
+	echo ""
+	echo "Sessions dir: $CODEX_SESSIONS_DIR"
+	echo "Index file:   $CODEX_INDEX_FILE"
+}
+
 # ---- Main: codexx ----
 
 codexx() {
+	# ---- Command handling ----
+	case "$1" in
+	-h | --help | help)
+		_codex_help
+		return
+		;;
+	list)
+		_codex_list
+		return
+		;;
+	doctor)
+		_codex_doctor
+		return
+		;;
+	esac
+
+	# ---- Dependency check ----
+	command -v codex >/dev/null || {
+		echo "❌ codex CLI not found"
+		return 1
+	}
+
 	local cwd=$(_codex_get_cwd)
 	local branch=$(_codex_get_branch)
 
 	local key=$(_codex_make_key "$cwd" "$branch")
 	local session_file="$CODEX_SESSIONS_DIR/$key"
 
+	# ---- Resume ----
 	if [ -f "$session_file" ]; then
 		local session_id=$(cat "$session_file")
 
@@ -69,6 +176,7 @@ codexx() {
 		fi
 	fi
 
+	# ---- Start new ----
 	echo "🆕 Starting new Codex session..."
 	echo "   dir: $cwd"
 	[ -n "$branch" ] && echo "   branch: $branch"
@@ -96,7 +204,7 @@ codexf() {
 
 	local selection=$(_codex_reverse_file "$CODEX_INDEX_FILE" |
 		awk -F'|' '{printf "%s|%s|%s|%s\n", $1, $2, $3, $4}' |
-		fzf --prompt="Select Codex session: ")
+		fzf --prompt="Codex Sessions ❯ " --height=40% --border)
 
 	[ -z "$selection" ] && return
 
