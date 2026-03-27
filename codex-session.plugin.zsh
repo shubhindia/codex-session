@@ -85,6 +85,16 @@ _codex_safe_sed_delete() {
 	fi
 }
 
+_codex_extract_session_id_from_transcript() {
+	local transcript_file="$1"
+	[ -f "$transcript_file" ] || return
+
+	LC_ALL=C tr -cd '\11\12\15\40-\176' <"$transcript_file" |
+		tr '\r' '\n' |
+		sed -nE 's/.*codex resume ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}).*/\1/p' |
+		tail -n 1
+}
+
 _codex_list() {
 	if [ ! -f "$CODEX_INDEX_FILE" ]; then
 		echo "No sessions found"
@@ -182,9 +192,17 @@ codexx() {
 	echo "   dir: $cwd"
 	[ -n "$branch" ] && echo "   branch: $branch"
 
-	codex
+	local capture_file
+	capture_file=$(mktemp "${TMPDIR:-/tmp}/codex-session.XXXXXX")
 
-	local session_id=$(codex resume --last 2>/dev/null | awk '{print $3}' | head -1)
+	if command -v script >/dev/null 2>&1; then
+		script -q "$capture_file" codex
+	else
+		codex
+	fi
+
+	local session_id=$(_codex_extract_session_id_from_transcript "$capture_file")
+	rm -f "$capture_file"
 
 	if [ -n "$session_id" ]; then
 		echo "$session_id" >"$session_file"
